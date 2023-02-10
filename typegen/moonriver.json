@@ -1,0 +1,42 @@
+{
+  "outDir": "../src/chains/moonriver/types/",
+  "specVersions": "https://moonriver.archive.subsquid.io/graphql",
+  "events": [
+    "Balances.Transfer",
+    "ParachainStaking.CandidateBondedLess",
+    "ParachainStaking.CandidateBondedMore",
+    "ParachainStaking.CandidateLeft",
+    "ParachainStaking.CollatorBondedLess",
+    "ParachainStaking.CollatorBondedMore",
+    "ParachainStaking.CollatorLeft",
+    "ParachainStaking.Delegation",
+    "ParachainStaking.DelegationDecreased",
+    "ParachainStaking.DelegationIncreased",
+    "ParachainStaking.DelegationRevoked",
+    "ParachainStaking.DelegatorLeft",
+    "ParachainStaking.DelegatorLeftCandidate",
+    "ParachainStaking.JoinedCollatorCandidates",
+    "ParachainStaking.NewRound",
+    "ParachainStaking.Nomination",
+    "ParachainStaking.NominationDecreased",
+    "ParachainStaking.NominationIncreased",
+    "ParachainStaking.NominatorLeft",
+    "ParachainStaking.NominatorLeftCollator",
+    "ParachainStaking.Rewarded"
+  ],
+  "calls": [],
+  "storage": [
+    "ParachainStaking.NominatorState",
+    "ParachainStaking.NominatorState2",
+    "ParachainStaking.DelegatorState",
+    "ParachainStaking.BottomDelegations",
+    "ParachainStaking.CandidateInfo",
+    "ParachainStaking.CandidateState",
+    "ParachainStaking.CollatorState",
+    "ParachainStaking.CollatorState2",
+    "ParachainStaking.DelegatorState",
+    "ParachainStaking.SelectedCandidates",
+    "ParachainStaking.TopDelegations",
+    "ParachainStaking.Round"
+  ]
+}

@@ -1,0 +1,88 @@
+type Collator @entity {
+    id: ID!
+    bond: BigInt
+    apr24h: Float
+}
+
+type Delegator @entity {
+    id: ID!
+}
+
+type Staker @entity {
+    id: ID!
+    stashId: String @index
+    role: String
+    activeBond: BigInt!
+    totalReward: BigInt!
+    apr24h: Float
+    collatorHistory: [RoundCollator!] @derivedFrom(field: "staker") # collator history for each round
+    nominatorHistory: [RoundNominator!] @derivedFrom(field: "staker") # nominator history for each round
+    rewards: [Reward!] @derivedFrom(field: "staker")
+}
+
+type Reward @entity {
+    id: ID!
+    timestamp: DateTime
+    blockNumber: Int @index
+    extrinsicHash: String @index
+    accountId: String! @index
+    amount: BigInt
+    round: Int
+    staker: Staker
+}
+
+type Round @entity {
+    id: ID!
+    index: Int!
+    timestamp: DateTime!
+    startedAt: Int!
+    endedAt: Int
+    collatorsCount: Int!
+    collators: [RoundCollator] @derivedFrom(field: "round")
+    nominators: [RoundNominator] @derivedFrom(field: "round")
+    total: BigInt!
+}
+
+type RoundCollator @entity {
+    id: ID!
+    round: Round!
+    ownBond: BigInt!
+    totalBond: BigInt!
+    rewardAmount: Float
+    apr: Float
+    aprTechnNumerator: Float
+    aprTechnDenominator: Float
+    nominators: [RoundNomination!] @derivedFrom(field: "collator")
+    nominatorsCount: Int
+    staker: Staker!
+    collator: Collator
+}
+
+type RoundNominator @entity {
+    id: ID!
+    round: Round!
+    bond: BigInt!
+    collators: [RoundNomination!] @derivedFrom(field: "nominator")
+    collatorsCount: Int!
+    staker: Staker!
+}
+
+type RoundNomination @entity {
+    id: ID!
+    round: Round!
+    collator: RoundCollator!
+    nominator: RoundNominator!
+    amount: BigInt!
+}
+
+type HistoryElement @entity {
+    id: ID!
+    blockNumber: Int!
+    staker: Staker
+    delegator: Delegator
+    collator: Collator
+    timestamp: DateTime!
+    type: Int!
+    round: Round!
+    amount: BigInt!
+}
