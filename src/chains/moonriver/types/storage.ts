@@ -133,6 +133,38 @@ export interface ParachainStakingCandidateStateStorageV1001 {
     getPairsPaged(pageSize: number, key: Uint8Array): AsyncIterable<[k: Uint8Array, v: v1001.CollatorCandidate][]>
 }
 
+export class ParachainStakingCollatorCommissionStorage extends StorageBase {
+    protected getPrefix() {
+        return 'ParachainStaking'
+    }
+
+    protected getName() {
+        return 'CollatorCommission'
+    }
+
+    /**
+     *  Commission percent taken off of rewards for all collators
+     */
+    get isV49(): boolean {
+        return this.getTypeHash() === '81bbbe8e62451cbcc227306706c919527aa2538970bd6d67a9969dd52c257d02'
+    }
+
+    /**
+     *  Commission percent taken off of rewards for all collators
+     */
+    get asV49(): ParachainStakingCollatorCommissionStorageV49 {
+        assert(this.isV49)
+        return this as any
+    }
+}
+
+/**
+ *  Commission percent taken off of rewards for all collators
+ */
+export interface ParachainStakingCollatorCommissionStorageV49 {
+    get(): Promise<number>
+}
+
 export class ParachainStakingCollatorStateStorage extends StorageBase {
     protected getPrefix() {
         return 'ParachainStaking'

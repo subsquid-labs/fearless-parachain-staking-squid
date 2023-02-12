@@ -3,7 +3,7 @@ const config = {
     prefix: '',
     dataSource: {
         archive: 'https://moonriver.archive.subsquid.io/graphql',
-        chain: 'wss://wss.api.moonriver.moonbeam.network',
+        chain: 'wss://moonriver.api.onfinality.io/ws?apikey=e1976c19-7166-4427-86e3-ca05dab43ff2',
     },
     typesBundle: 'moonriver',
     batchSize: 100,

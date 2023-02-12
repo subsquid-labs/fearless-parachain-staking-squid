@@ -37,6 +37,10 @@
     "ParachainStaking.DelegatorState",
     "ParachainStaking.SelectedCandidates",
     "ParachainStaking.TopDelegations",
-    "ParachainStaking.Round"
+    "ParachainStaking.Round",
+    "ParachainStaking.CollatorCommission"
+  ],
+  "constants": [
+    "ParachainStaking.RewardPaymentDelay"
   ]
 }

@@ -178,8 +178,16 @@ export const Delegation = {
                     amount,
                     candidate,
                 }
+            } else if (e.isV1901) {
+                const {delegator: account, lockedAmount: amount, candidate} = e.asV1901
+                return {
+                    account,
+                    amount,
+                    candidate,
+                }
+            } else {
+                throw new UnknownVersionError(e)
             }
-            throw new UnknownVersionError(e)
         }
     },
 }

@@ -24,6 +24,7 @@ type RoundData = {
     total: bigint
     selectedCandidates: ParachainStaking.Candidate[]
     candidateDelegators: ParachainStaking.Delegator[]
+    collatorComission: number
 }
 
 export async function processRounds(ctx: BatchContext<Store, Item>): Promise<void> {
@@ -40,13 +41,13 @@ export async function processRounds(ctx: BatchContext<Store, Item>): Promise<voi
     }
 
     let stakers = await ctx.store.find(Staker, {where: {id: In([...stakerIds])}}).then(toEntityMap)
-    let newStakers: Staker[] = []
+    // let newStakers: Staker[] = []
     let getStaker = (id: string) => {
         let s = stakers.get(id)
         if (s == null) {
             s = createStaker(id)
             stakers.set(id, s)
-            newStakers.push(s)
+            // newStakers.push(s)
         }
         return s
     }
@@ -100,7 +101,7 @@ export async function processRounds(ctx: BatchContext<Store, Item>): Promise<voi
                 staker,
                 ownBond: collatorData.state.bond,
                 totalBond,
-                rewardAmount: 0,
+                rewardAmount: data.collatorComission,
                 nominatorsCount: allDelegations.length,
             })
 
@@ -127,7 +128,7 @@ export async function processRounds(ctx: BatchContext<Store, Item>): Promise<voi
         collators.push(...roundCollators.values())
     }
 
-    await ctx.store.insert(newStakers)
+    await ctx.store.save([...stakers.values()])
     await ctx.store.insert(rounds)
     await ctx.store.insert(collators)
     await ctx.store.insert(nominators)
@@ -144,8 +145,26 @@ async function getRoundsData(ctx: BatchContext<unknown, Item>): Promise<RoundDat
             if (item.name in chain.ParachainStaking.events.NewRound.names) {
                 const e = chain.ParachainStaking.events.NewRound.decode(ctx, item.event)
 
-                const selectedCandidates = await chain.ParachainStaking.storage.SelectedCandidates.get(ctx, block)
-                if (selectedCandidates == null) continue
+                const candidateIds = await chain.ParachainStaking.storage.SelectedCandidates.get(ctx, block)
+                assert(candidateIds != null)
+
+                let candidateStates = await chain.ParachainStaking.storage.CandidateInfo.getMany(
+                    ctx,
+                    block,
+                    candidateIds
+                )
+                assert(candidateStates != null)
+
+                let selectedCandidates: ParachainStaking.Candidate[] = []
+                for (let i = 0; i < candidateIds.length; i++) {
+                    let id = candidateIds[i]
+                    let state = assertNotNull(candidateStates[i])
+
+                    selectedCandidates.push({
+                        id,
+                        state,
+                    })
+                }
 
                 const delegatorIds = selectedCandidates
                     .map((c) => [
@@ -171,6 +190,9 @@ async function getRoundsData(ctx: BatchContext<unknown, Item>): Promise<RoundDat
                     })
                 }
 
+                let collatorComission = await chain.ParachainStaking.storage.CollatorComission.get(ctx, block)
+                assert(collatorComission != null)
+
                 roundsData.push({
                     index: e.round,
                     timestamp: new Date(block.timestamp),
@@ -179,6 +201,7 @@ async function getRoundsData(ctx: BatchContext<unknown, Item>): Promise<RoundDat
                     total: e.totalBalance,
                     selectedCandidates,
                     candidateDelegators,
+                    collatorComission,
                 })
             }
         }

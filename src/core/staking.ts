@@ -5,7 +5,7 @@ import assert from 'assert'
 import {In, MoreThanOrEqual} from 'typeorm'
 import {chain} from '../chains'
 import {HistoryElement, Reward, Round, RoundCollator, RoundNominator, Staker} from '../model'
-import {toEntityMap} from '../utils/misc'
+import {splitIntoBatches, toEntityMap} from '../utils/misc'
 import {createStaker} from './entities'
 
 type Item = EventItem<string, {event: {args: true}}> | CallItem<string>
@@ -41,8 +41,11 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
 
     const stakingData = await getStakingData(ctx)
 
+    let rewardDelay = chain.ParachainStaking.constants.RewardPaymentDelay.get(ctx)
+    let roundOffset = rewardDelay + 4
+
     let rounds = await ctx.store.find(Round, {
-        where: {index: MoreThanOrEqual(firstRoundIndex - 5)},
+        where: {index: MoreThanOrEqual(firstRoundIndex - roundOffset)},
         order: {index: 'ASC'},
     })
     const cachedHeightRound: Record<number, Round> = {}
@@ -62,6 +65,7 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
 
     let stakerIds = new Set<string>()
     let roundCollatorIds = new Set<string>()
+
     for (let data of stakingData) {
         let round = getRound(data.blockNumber)
 
@@ -69,16 +73,22 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
         stakerIds.add(stakerId)
 
         if (data.__kind === 'Reward') {
-            for (let i = 3; i < 6; i++) {
+            for (let i = rewardDelay; i <= roundOffset; i++) {
                 roundCollatorIds.add(`${round.index - i}-${stakerId}`)
             }
         }
     }
 
     const stakers = await ctx.store.find(Staker, {where: {id: In([...stakerIds])}}).then(toEntityMap)
-    const roundCollators = await ctx.store
-        .find(RoundCollator, {where: {id: In([...roundCollatorIds])}})
-        .then(toEntityMap)
+    const findRoundCollators = async (ids: string[]) => {
+        let r: RoundCollator[] = []
+        for (let batch of splitIntoBatches(ids, 2000)) {
+            let q = await ctx.store.find(RoundCollator, {where: {id: In(batch)}})
+            r.push(...q)
+        }
+        return r
+    }
+    const roundCollators = await findRoundCollators([...roundCollatorIds]).then(toEntityMap)
 
     const historyElements: HistoryElement[] = []
     const rewards: Reward[] = []
@@ -177,7 +187,7 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
                         const colAnnualRew = colRew * Number(1460)
                         roundCollator.apr = colAnnualRew / Number(roundCollator.ownBond)
 
-                        const collatorLastRound = roundCollators.get(`${round.index - 6}-${staker.stashId}`)
+                        const collatorLastRound = roundCollators.get(`${round.index - roundOffset}-${staker.stashId}`)
                         const lastApr = collatorLastRound?.apr || 0
                         if (collatorLastRound == null || lastApr <= 0) {
                             staker.apr24h = roundCollator.apr / 4
@@ -187,13 +197,12 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
                             if (avgApr > 0) {
                                 staker.apr24h = (avgApr - lastApr + roundCollator.apr) / 4
                             } else {
-                                const lastRound3Collator = roundCollators.get(`${round.index - 5}-${staker.stashId}`)
-                                const lastRound3Apr = lastRound3Collator?.apr || 0
-                                const lastRound2Collator = roundCollators.get(`${round.index - 4}-${staker.stashId}`)
-                                const lastRound2Apr = lastRound2Collator?.apr || 0
-                                const lastRound1Collator = roundCollators.get(`${round.index - 3}-${staker.stashId}`)
-                                const lastRound1Apr = lastRound1Collator?.apr || 0
-                                staker.apr24h = (lastRound3Apr + lastRound2Apr + lastRound1Apr + roundCollator.apr) / 4
+                                let s = 0
+                                for (let i = roundOffset - 1; i > rewardDelay; i--) {
+                                    const lrc = roundCollators.get(`${round.index - i}-${staker.stashId}`)
+                                    s += lrc?.apr || 0
+                                }
+                                staker.apr24h = (s + roundCollator.apr) / 4
                             }
                         }
                     }

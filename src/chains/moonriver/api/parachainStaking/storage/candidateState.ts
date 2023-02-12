@@ -50,7 +50,7 @@ export const CandidateInfo = {
         if (psbds.isV1201) {
             let r = await psbds.asV1201.getMany(addresses)
             for (let i = 0; i < addresses.length; i++) {
-                topDelegations.push(r[i]?.delegations)
+                bottomDelegations.push(r[i]?.delegations)
             }
         } else {
             throw new UnknownVersionError(psbds)
