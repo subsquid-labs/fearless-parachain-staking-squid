@@ -1,51 +1,57 @@
-import {SubstrateBatchProcessor, BatchContext, assertNotNull, BatchProcessorItem} from '@subsquid/substrate-processor'
-import {CallItem, EventItem} from '@subsquid/substrate-processor/lib/interfaces/dataSelection'
-import {Store} from '@subsquid/typeorm-store'
 import assert from 'assert'
 import {In, MoreThanOrEqual} from 'typeorm'
-import {chain} from '../chains'
-import {HistoryElement, Reward, Round, RoundCollator, RoundNominator, Staker} from '../model'
+import {BatchContext} from '@subsquid/substrate-processor'
+import {Store} from '@subsquid/typeorm-store'
+import {HistoryElement, Reward, Round, RoundCollator, Staker} from '../model'
 import {splitIntoBatches, toEntityMap} from '../utils/misc'
 import {createStaker} from './entities'
 
-type Item = EventItem<string, {event: {args: true}}> | CallItem<string>
-
-export function setupStaking(processor: SubstrateBatchProcessor) {
-    for (let i in chain.ParachainStaking.events.CandidateBondedLess.names) {
-        processor.addEvent(i, {data: {event: {args: true}}})
-    }
-
-    for (let i in chain.ParachainStaking.events.CandidateBondedMore.names) {
-        processor.addEvent(i, {data: {event: {args: true}}})
-    }
-
-    for (let i in chain.ParachainStaking.events.Delegation.names) {
-        processor.addEvent(i, {data: {event: {args: true}}})
-    }
-
-    for (let i in chain.ParachainStaking.events.DelegationDecreased.names) {
-        processor.addEvent(i, {data: {event: {args: true}}})
-    }
-
-    for (let i in chain.ParachainStaking.events.DelegationIncreased.names) {
-        processor.addEvent(i, {data: {event: {args: true}}})
-    }
-
-    for (let i in chain.ParachainStaking.events.Rewarded.names) {
-        processor.addEvent(i, {data: {event: {args: true}}})
-    }
+type BondData = {
+    __kind: 'Bond'
+    id: string
+    timestamp: Date
+    blockNumber: number
+    accountId: string
+    amount: bigint
+    newTotal: bigint
+    isUnstake: boolean
 }
 
-export async function processStaking(ctx: BatchContext<Store, Item>) {
-    let firstRoundIndex = await getFirstRound(ctx)
+type DelegationData = {
+    __kind: 'Delegation'
+    id: string
+    timestamp: Date
+    blockNumber: number
+    accountId: string
+    amount: bigint
+    candidateId: string
+    isUnstake: boolean
+}
 
-    const stakingData = await getStakingData(ctx)
+type RewardData = {
+    __kind: 'Reward'
+    id: string
+    timestamp: Date
+    blockNumber: number
+    amount: bigint
+    accountId: string
+}
 
-    let rewardDelay = chain.ParachainStaking.constants.RewardPaymentDelay.get(ctx)
-    let roundOffset = rewardDelay + 4
+export type StakingData = BondData | DelegationData | RewardData
+
+export async function processStaking(
+    ctx: BatchContext<Store, unknown>,
+    data: {
+        startRoundIndex: number
+        stakingData: StakingData[]
+        rewardPaymentDelay: number
+    }
+) {
+    let {startRoundIndex, stakingData, rewardPaymentDelay} = data
+    let roundOffset = rewardPaymentDelay + 4
 
     let rounds = await ctx.store.find(Round, {
-        where: {index: MoreThanOrEqual(firstRoundIndex - roundOffset)},
+        where: {index: MoreThanOrEqual(startRoundIndex - roundOffset)},
         order: {index: 'ASC'},
     })
     const cachedHeightRound: Record<number, Round> = {}
@@ -73,7 +79,7 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
         stakerIds.add(stakerId)
 
         if (data.__kind === 'Reward') {
-            for (let i = rewardDelay; i <= roundOffset; i++) {
+            for (let i = rewardPaymentDelay; i <= roundOffset; i++) {
                 roundCollatorIds.add(`${round.index - i}-${stakerId}`)
             }
         }
@@ -198,7 +204,7 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
                                 staker.apr24h = (avgApr - lastApr + roundCollator.apr) / 4
                             } else {
                                 let s = 0
-                                for (let i = roundOffset - 1; i > rewardDelay; i--) {
+                                for (let i = roundOffset - 1; i > rewardPaymentDelay; i--) {
                                     const lrc = roundCollators.get(`${round.index - i}-${staker.stashId}`)
                                     s += lrc?.apr || 0
                                 }
@@ -216,151 +222,4 @@ export async function processStaking(ctx: BatchContext<Store, Item>) {
 
     await ctx.store.insert(historyElements)
     await ctx.store.insert(rewards)
-}
-
-type BondData = {
-    __kind: 'Bond'
-    id: string
-    timestamp: Date
-    blockNumber: number
-    accountId: string
-    amount: bigint
-    newTotal: bigint
-    isUnstake: boolean
-}
-
-type DelegationData = {
-    __kind: 'Delegation'
-    id: string
-    timestamp: Date
-    blockNumber: number
-    accountId: string
-    amount: bigint
-    candidateId: string
-    isUnstake: boolean
-}
-
-type RewardData = {
-    __kind: 'Reward'
-    id: string
-    timestamp: Date
-    blockNumber: number
-    amount: bigint
-    accountId: string
-}
-
-type StakingData = BondData | DelegationData | RewardData
-
-async function getStakingData(ctx: BatchContext<unknown, Item>): Promise<StakingData[]> {
-    const stakingData: StakingData[] = []
-
-    for (const {header: block, items} of ctx.blocks) {
-        for (const item of items) {
-            if (item.kind !== 'event') continue
-
-            if (item.name in chain.ParachainStaking.events.CandidateBondedLess.names) {
-                let e = chain.ParachainStaking.events.CandidateBondedLess.decode(ctx, item.event)
-                stakingData.push({
-                    __kind: 'Bond',
-                    id: item.event.id,
-                    timestamp: new Date(block.timestamp),
-                    blockNumber: block.height,
-                    amount: e.amount,
-                    accountId: chain.encodeAddress(e.account),
-                    newTotal: e.newTotal,
-                    isUnstake: true,
-                })
-            }
-
-            if (item.name in chain.ParachainStaking.events.CandidateBondedMore.names) {
-                let e = chain.ParachainStaking.events.CandidateBondedMore.decode(ctx, item.event)
-                stakingData.push({
-                    __kind: 'Bond',
-                    id: item.event.id,
-                    timestamp: new Date(block.timestamp),
-                    blockNumber: block.height,
-                    amount: e.amount,
-                    accountId: chain.encodeAddress(e.account),
-                    newTotal: e.newTotal,
-                    isUnstake: false,
-                })
-            }
-
-            if (item.name in chain.ParachainStaking.events.Delegation.names) {
-                let e = chain.ParachainStaking.events.Delegation.decode(ctx, item.event)
-                stakingData.push({
-                    __kind: 'Delegation',
-                    id: item.event.id,
-                    timestamp: new Date(block.timestamp),
-                    blockNumber: block.height,
-                    amount: e.amount,
-                    accountId: chain.encodeAddress(e.account),
-                    candidateId: chain.encodeAddress(e.candidate),
-                    isUnstake: false,
-                })
-            }
-
-            if (item.name in chain.ParachainStaking.events.DelegationDecreased.names) {
-                let e = chain.ParachainStaking.events.DelegationDecreased.decode(ctx, item.event)
-                stakingData.push({
-                    __kind: 'Delegation',
-                    id: item.event.id,
-                    timestamp: new Date(block.timestamp),
-                    blockNumber: block.height,
-                    amount: e.amount,
-                    accountId: chain.encodeAddress(e.account),
-                    candidateId: chain.encodeAddress(e.candidate),
-                    isUnstake: true,
-                })
-            }
-
-            if (item.name in chain.ParachainStaking.events.DelegationIncreased.names) {
-                let e = chain.ParachainStaking.events.DelegationIncreased.decode(ctx, item.event)
-                stakingData.push({
-                    __kind: 'Delegation',
-                    id: item.event.id,
-                    timestamp: new Date(block.timestamp),
-                    blockNumber: block.height,
-                    amount: e.amount,
-                    accountId: chain.encodeAddress(e.account),
-                    candidateId: chain.encodeAddress(e.candidate),
-                    isUnstake: false,
-                })
-            }
-
-            if (item.name in chain.ParachainStaking.events.DelegationRevoked.names) {
-                let e = chain.ParachainStaking.events.DelegationRevoked.decode(ctx, item.event)
-                stakingData.push({
-                    __kind: 'Delegation',
-                    id: item.event.id,
-                    timestamp: new Date(block.timestamp),
-                    blockNumber: block.height,
-                    amount: e.amount,
-                    accountId: chain.encodeAddress(e.account),
-                    candidateId: chain.encodeAddress(e.candidate),
-                    isUnstake: true,
-                })
-            }
-
-            if (item.name in chain.ParachainStaking.events.Rewarded.names) {
-                let e = chain.ParachainStaking.events.Rewarded.decode(ctx, item.event)
-                stakingData.push({
-                    __kind: 'Reward',
-                    id: item.event.id,
-                    timestamp: new Date(block.timestamp),
-                    blockNumber: block.height,
-                    amount: e.amount,
-                    accountId: chain.encodeAddress(e.account),
-                })
-            }
-        }
-    }
-
-    return stakingData
-}
-
-async function getFirstRound(ctx: BatchContext<Store, unknown>) {
-    let round = await chain.ParachainStaking.storage.Round.get(ctx, ctx.blocks[0].header)
-    assert(round != null)
-    return round.current
 }

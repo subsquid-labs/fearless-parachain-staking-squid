@@ -10,21 +10,12 @@ namespace ParachainStaking {
         bottomDelegations: Delegation[]
     }
 
-    export type Candidate = {
-        id: Uint8Array
-        state: CandidateState
-    }
     export interface DelegatorState {
         total: bigint
         delegations: {
             owner: Uint8Array
             amount: bigint
         }[]
-    }
-
-    export type Delegator = {
-        id: Uint8Array
-        state: DelegatorState
     }
 
     export type Round = {

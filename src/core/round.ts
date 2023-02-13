@@ -1,35 +1,34 @@
 import assert from 'assert'
 import {In} from 'typeorm'
-import {BatchContext, BatchProcessorItem, SubstrateBatchProcessor, assertNotNull} from '@subsquid/substrate-processor'
+import {BatchContext} from '@subsquid/substrate-processor'
 import {Store} from '@subsquid/typeorm-store'
 import {chain} from '../chains'
 import {Round, RoundCollator, RoundNomination, RoundNominator, Staker} from '../model'
-import {createStaker} from './entities'
-import {EventItem, CallItem} from '@subsquid/substrate-processor/lib/interfaces/dataSelection'
 import {toEntityMap} from '../utils/misc'
+import {createStaker} from './entities'
 
-type Item = EventItem<string, {event: {args: true}}> | CallItem<string>
-
-export function setupRound(processor: SubstrateBatchProcessor) {
-    for (let i in chain.ParachainStaking.events.NewRound.names) {
-        processor.addEvent(i, {data: {event: {args: true}}})
-    }
+export type Candidate = {
+    id: Uint8Array
+    state: ParachainStaking.CandidateState
 }
 
-type RoundData = {
+export type Delegator = {
+    id: Uint8Array
+    state: ParachainStaking.DelegatorState
+}
+
+export type RoundData = {
     index: number
     timestamp: Date
     startedAt: number
     collatorsCount: number
     total: bigint
-    selectedCandidates: ParachainStaking.Candidate[]
-    candidateDelegators: ParachainStaking.Delegator[]
+    selectedCandidates: Candidate[]
+    candidateDelegators: Delegator[]
     collatorComission: number
 }
 
-export async function processRounds(ctx: BatchContext<Store, Item>): Promise<void> {
-    const roundsData = await getRoundsData(ctx)
-
+export async function processRounds(ctx: BatchContext<Store, unknown>, roundsData: RoundData[]): Promise<void> {
     let stakerIds = new Set<string>()
     for (let data of roundsData) {
         for (let c of data.selectedCandidates) {
@@ -41,13 +40,11 @@ export async function processRounds(ctx: BatchContext<Store, Item>): Promise<voi
     }
 
     let stakers = await ctx.store.find(Staker, {where: {id: In([...stakerIds])}}).then(toEntityMap)
-    // let newStakers: Staker[] = []
     let getStaker = (id: string) => {
         let s = stakers.get(id)
         if (s == null) {
             s = createStaker(id)
             stakers.set(id, s)
-            // newStakers.push(s)
         }
         return s
     }
@@ -133,79 +130,4 @@ export async function processRounds(ctx: BatchContext<Store, Item>): Promise<voi
     await ctx.store.insert(collators)
     await ctx.store.insert(nominators)
     await ctx.store.insert(nominations)
-}
-
-async function getRoundsData(ctx: BatchContext<unknown, Item>): Promise<RoundData[]> {
-    const roundsData: RoundData[] = []
-
-    for (const {header: block, items} of ctx.blocks) {
-        for (const item of items) {
-            if (item.kind !== 'event') continue
-
-            if (item.name in chain.ParachainStaking.events.NewRound.names) {
-                const e = chain.ParachainStaking.events.NewRound.decode(ctx, item.event)
-
-                const candidateIds = await chain.ParachainStaking.storage.SelectedCandidates.get(ctx, block)
-                assert(candidateIds != null)
-
-                let candidateStates = await chain.ParachainStaking.storage.CandidateInfo.getMany(
-                    ctx,
-                    block,
-                    candidateIds
-                )
-                assert(candidateStates != null)
-
-                let selectedCandidates: ParachainStaking.Candidate[] = []
-                for (let i = 0; i < candidateIds.length; i++) {
-                    let id = candidateIds[i]
-                    let state = assertNotNull(candidateStates[i])
-
-                    selectedCandidates.push({
-                        id,
-                        state,
-                    })
-                }
-
-                const delegatorIds = selectedCandidates
-                    .map((c) => [
-                        ...c.state.topDelegations.map((d) => d.owner),
-                        ...c.state.bottomDelegations.map((d) => d.owner),
-                    ])
-                    .flat()
-
-                let delegatorStates = await chain.ParachainStaking.storage.DelegatorState.getMany(
-                    ctx,
-                    block,
-                    delegatorIds
-                )
-                assert(delegatorStates != null)
-
-                let candidateDelegators: ParachainStaking.Delegator[] = []
-                for (let i = 0; i < delegatorIds.length; i++) {
-                    let id = delegatorIds[i]
-                    let state = assertNotNull(delegatorStates[i])
-                    candidateDelegators.push({
-                        id,
-                        state,
-                    })
-                }
-
-                let collatorComission = await chain.ParachainStaking.storage.CollatorComission.get(ctx, block)
-                assert(collatorComission != null)
-
-                roundsData.push({
-                    index: e.round,
-                    timestamp: new Date(block.timestamp),
-                    startedAt: e.startingBlock,
-                    collatorsCount: selectedCandidates.length,
-                    total: e.totalBalance,
-                    selectedCandidates,
-                    candidateDelegators,
-                    collatorComission,
-                })
-            }
-        }
-    }
-
-    return roundsData
 }
