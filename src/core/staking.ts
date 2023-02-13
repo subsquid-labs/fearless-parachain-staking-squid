@@ -193,7 +193,7 @@ export async function processStaking(
                 if (staker.role === 'collator') {
                     const roundCollator = roundCollators.get(`${round.index - 2}-${staker.stashId}`)
                     if (roundCollator == null) {
-                        // consts hope he wasn't collator
+                        // lets hope he wasn't collator
                     } else {
                         const colStakeShare = roundCollator.ownBond / roundCollator.totalBond
                         const amountDue = Number(data.amount) / (0.2 + 0.5 * Number(colStakeShare))
