@@ -37,7 +37,16 @@ type RewardData = {
     accountId: string
 }
 
-export type StakingData = BondData | DelegationData | RewardData
+type CompoundData = {
+    __kind: 'Compound'
+    id: string
+    timestamp: Date
+    blockNumber: number
+    amount: bigint
+    accountId: string
+}
+
+export type StakingData = BondData | DelegationData | RewardData | CompoundData
 
 export async function processStaking(
     ctx: BatchContext<Store, unknown>,
@@ -155,7 +164,6 @@ export async function processStaking(
                 const staker = stakers.get(stakerId)
                 assert(staker != null)
 
-                staker.totalReward += data.amount
                 staker.activeBond += data.amount
 
                 historyElements.push(
@@ -213,6 +221,13 @@ export async function processStaking(
                         }
                     }
                 }
+                break
+            }
+            case 'Compound': {
+                let staker = stakers.get(stakerId)
+                assert(staker != null)
+
+                staker.activeBond += data.amount
             }
         }
     }

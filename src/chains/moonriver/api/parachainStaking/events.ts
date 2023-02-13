@@ -1,4 +1,5 @@
 import {UnknownVersionError} from '../../../../utils/errors'
+import {ParachainStakingCompoundedEvent} from '../../../moonbeam/types/events'
 import {
     ParachainStakingCandidateBondedLessEvent,
     ParachainStakingCandidateBondedMoreEvent,
@@ -284,7 +285,6 @@ export const NominationDecreased = {
 }
 
 export const DelegationDecreased = {
-    names: {'ParachainStaking.DelegationDecreased': true, ...NominationDecreased.names} as const,
     decode(ctx: ChainContext, event: Event): ParachainStaking.DelegationDecreased {
         if (event.name in NominationDecreased.names) {
             return NominationDecreased.decode(ctx, event)
@@ -312,7 +312,6 @@ export const DelegationDecreased = {
 }
 
 export const DelegationRevoked = {
-    names: {'ParachainStaking.DelegationRevoked': true} as const,
     decode(ctx: ChainContext, event: Event): ParachainStaking.DelegationDecreased {
         const e = new ParachainStakingDelegationRevokedEvent(ctx, event)
         if (e.isV1001) {
@@ -335,7 +334,6 @@ export const DelegationRevoked = {
 }
 
 export const Rewarded = {
-    names: {'ParachainStaking.Rewarded': true} as const,
     decode(ctx: ChainContext, event: Event) {
         const e = new ParachainStakingRewardedEvent(ctx, event)
         if (e.isV49) {
@@ -346,6 +344,21 @@ export const Rewarded = {
             }
         } else if (e.isV1300) {
             const {account, rewards: amount} = e.asV1300
+            return {
+                account,
+                amount,
+            }
+        } else {
+            throw new UnknownVersionError(e)
+        }
+    },
+}
+
+export const Compounded = {
+    decode(ctx: ChainContext, event: Event) {
+        const e = new ParachainStakingCompoundedEvent(ctx, event)
+        if (e.isV1901) {
+            const {delegator: account, amount} = e.asV1901
             return {
                 account,
                 amount,

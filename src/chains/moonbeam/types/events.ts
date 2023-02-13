@@ -268,6 +268,35 @@ export class ParachainStakingCollatorLeftEvent {
     }
 }
 
+export class ParachainStakingCompoundedEvent {
+    private readonly _chain: Chain
+    private readonly event: Event
+
+    constructor(ctx: EventContext)
+    constructor(ctx: ChainContext, event: Event)
+    constructor(ctx: EventContext, event?: Event) {
+        event = event || ctx.event
+        assert(event.name === 'ParachainStaking.Compounded')
+        this._chain = ctx._chain
+        this.event = event
+    }
+
+    /**
+     * Compounded a portion of rewards towards the delegation.
+     */
+    get isV1901(): boolean {
+        return this._chain.getEventHash('ParachainStaking.Compounded') === '8266cbb073e59a0e3396d5560489030a068acf3b9e5df48c17dfbe42dc02e748'
+    }
+
+    /**
+     * Compounded a portion of rewards towards the delegation.
+     */
+    get asV1901(): {candidate: Uint8Array, delegator: Uint8Array, amount: bigint} {
+        assert(this.isV1901)
+        return this._chain.decodeEvent(this.event)
+    }
+}
+
 export class ParachainStakingDelegationEvent {
     private readonly _chain: Chain
     private readonly event: Event

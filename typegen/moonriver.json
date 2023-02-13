@@ -22,7 +22,8 @@
     "ParachainStaking.NominationIncreased",
     "ParachainStaking.NominatorLeft",
     "ParachainStaking.NominatorLeftCollator",
-    "ParachainStaking.Rewarded"
+    "ParachainStaking.Rewarded",
+    "ParachainStaking.Compounded"
   ],
   "calls": [],
   "storage": [

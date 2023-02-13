@@ -4,6 +4,7 @@ import {
     ParachainStakingCandidateBondedMoreEvent,
     ParachainStakingCollatorBondedLessEvent,
     ParachainStakingCollatorBondedMoreEvent,
+    ParachainStakingCompoundedEvent,
     ParachainStakingDelegationDecreasedEvent,
     ParachainStakingDelegationEvent,
     ParachainStakingDelegationIncreasedEvent,
@@ -298,6 +299,21 @@ export const Rewarded = {
             }
         } else if (e.isV1300) {
             const {account, rewards: amount} = e.asV1300
+            return {
+                account,
+                amount,
+            }
+        } else {
+            throw new UnknownVersionError(e)
+        }
+    },
+}
+
+export const Compounded = {
+    decode(ctx: ChainContext, event: Event) {
+        const e = new ParachainStakingCompoundedEvent(ctx, event)
+        if (e.isV1901) {
+            const {delegator: account, amount} = e.asV1901
             return {
                 account,
                 amount,
