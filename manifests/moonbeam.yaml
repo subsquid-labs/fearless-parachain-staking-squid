@@ -1,12 +1,12 @@
 manifestVersion: subsquid.io/v0.1
-name: belopash-moonriver-test
+name: belopash-moonbeam-test
 version: 1
 description: |-
   blablabla
 build:
 deploy:
   secrets:
-    - MOONRIVER_CHAIN_NODE
+    - MOONBEAM_CHAIN_NODE
   addons:
     postgres:
   processor:

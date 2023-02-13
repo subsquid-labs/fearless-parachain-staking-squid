@@ -47,10 +47,10 @@ export async function processStaking(
         rewardPaymentDelay: number
     }
 ) {
-    let {startRoundIndex, stakingData, rewardPaymentDelay} = data
-    let roundOffset = rewardPaymentDelay + 4
+    const {startRoundIndex, stakingData, rewardPaymentDelay} = data
+    const roundOffset = rewardPaymentDelay + 4
 
-    let rounds = await ctx.store.find(Round, {
+    const rounds = await ctx.store.find(Round, {
         where: {index: MoreThanOrEqual(startRoundIndex - roundOffset)},
         order: {index: 'ASC'},
     })
@@ -69,13 +69,13 @@ export async function processStaking(
         return r
     }
 
-    let stakerIds = new Set<string>()
-    let roundCollatorIds = new Set<string>()
+    const stakerIds = new Set<string>()
+    const roundCollatorIds = new Set<string>()
 
-    for (let data of stakingData) {
-        let round = getRound(data.blockNumber)
+    for (const data of stakingData) {
+        const round = getRound(data.blockNumber)
 
-        let stakerId = data.accountId
+        const stakerId = data.accountId
         stakerIds.add(stakerId)
 
         if (data.__kind === 'Reward') {
@@ -87,9 +87,9 @@ export async function processStaking(
 
     const stakers = await ctx.store.find(Staker, {where: {id: In([...stakerIds])}}).then(toEntityMap)
     const findRoundCollators = async (ids: string[]) => {
-        let r: RoundCollator[] = []
-        for (let batch of splitIntoBatches(ids, 2000)) {
-            let q = await ctx.store.find(RoundCollator, {where: {id: In(batch)}})
+        const r: RoundCollator[] = []
+        for (const batch of splitIntoBatches(ids, 2000)) {
+            const q = await ctx.store.find(RoundCollator, {where: {id: In(batch)}})
             r.push(...q)
         }
         return r
@@ -98,10 +98,10 @@ export async function processStaking(
 
     const historyElements: HistoryElement[] = []
     const rewards: Reward[] = []
-    for (let data of stakingData) {
-        let round = getRound(data.blockNumber)
+    for (const data of stakingData) {
+        const round = getRound(data.blockNumber)
 
-        let stakerId = data.accountId
+        const stakerId = data.accountId
         switch (data.__kind) {
             case 'Bond': {
                 let staker = stakers.get(stakerId)
@@ -185,7 +185,7 @@ export async function processStaking(
                 if (staker.role === 'collator') {
                     const roundCollator = roundCollators.get(`${round.index - 2}-${staker.stashId}`)
                     if (roundCollator == null) {
-                        // lets hope he wasn't collator
+                        // consts hope he wasn't collator
                     } else {
                         const colStakeShare = roundCollator.ownBond / roundCollator.totalBond
                         const amountDue = Number(data.amount) / (0.2 + 0.5 * Number(colStakeShare))

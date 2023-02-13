@@ -2,19 +2,30 @@ import assert from 'assert'
 import {In} from 'typeorm'
 import {BatchContext} from '@subsquid/substrate-processor'
 import {Store} from '@subsquid/typeorm-store'
-import {chain} from '../chains'
 import {Round, RoundCollator, RoundNomination, RoundNominator, Staker} from '../model'
 import {toEntityMap} from '../utils/misc'
 import {createStaker} from './entities'
 
 export type Candidate = {
-    id: Uint8Array
-    state: ParachainStaking.CandidateState
+    id: string
+    state: {
+        bond: bigint
+        delegations: {
+            owner: string
+            amount: bigint
+        }[]
+    }
 }
 
 export type Delegator = {
-    id: Uint8Array
-    state: ParachainStaking.DelegatorState
+    id: string
+    state: {
+        total: bigint
+        delegations: {
+            owner: string
+            amount: bigint
+        }[]
+    }
 }
 
 export type RoundData = {
@@ -29,18 +40,18 @@ export type RoundData = {
 }
 
 export async function processRounds(ctx: BatchContext<Store, unknown>, roundsData: RoundData[]): Promise<void> {
-    let stakerIds = new Set<string>()
-    for (let data of roundsData) {
-        for (let c of data.selectedCandidates) {
-            stakerIds.add(chain.encodeAddress(c.id))
+    const stakerIds = new Set<string>()
+    for (const data of roundsData) {
+        for (const c of data.selectedCandidates) {
+            stakerIds.add(c.id)
         }
-        for (let d of data.candidateDelegators) {
-            stakerIds.add(chain.encodeAddress(d.id))
+        for (const d of data.candidateDelegators) {
+            stakerIds.add(d.id)
         }
     }
 
-    let stakers = await ctx.store.find(Staker, {where: {id: In([...stakerIds])}}).then(toEntityMap)
-    let getStaker = (id: string) => {
+    const stakers = await ctx.store.find(Staker, {where: {id: In([...stakerIds])}}).then(toEntityMap)
+    const getStaker = (id: string) => {
         let s = stakers.get(id)
         if (s == null) {
             s = createStaker(id)
@@ -53,7 +64,7 @@ export async function processRounds(ctx: BatchContext<Store, unknown>, roundsDat
     const collators: RoundCollator[] = []
     const nominators: RoundNominator[] = []
     const nominations: RoundNomination[] = []
-    for (let data of roundsData) {
+    for (const data of roundsData) {
         const round = new Round({
             id: data.index.toString(),
             ...data,
@@ -61,10 +72,10 @@ export async function processRounds(ctx: BatchContext<Store, unknown>, roundsDat
         rounds.push(round)
 
         const roundNominators = new Map<string, RoundNominator>()
-        for (let nominatorData of data.candidateDelegators) {
-            let id = chain.encodeAddress(nominatorData.id)
+        for (const nominatorData of data.candidateDelegators) {
+            const id = nominatorData.id
 
-            let staker = getStaker(id)
+            const staker = getStaker(id)
 
             roundNominators.set(
                 id,
@@ -80,33 +91,31 @@ export async function processRounds(ctx: BatchContext<Store, unknown>, roundsDat
         nominators.push(...roundNominators.values())
 
         const roundCollators = new Map<string, RoundCollator>()
-        for (let collatorData of data.selectedCandidates) {
-            let id = chain.encodeAddress(collatorData.id)
+        for (const collatorData of data.selectedCandidates) {
+            const id = collatorData.id
 
-            let staker = getStaker(id)
-
-            const allDelegations = [...collatorData.state.topDelegations, ...collatorData.state.bottomDelegations]
+            const staker = getStaker(id)
 
             let totalBond = collatorData.state.bond
-            for (let delegation of allDelegations) {
+            for (const delegation of collatorData.state.delegations) {
                 totalBond += delegation.amount
             }
 
-            let collator = new RoundCollator({
+            const collator = new RoundCollator({
                 id: `${round.index}-${id}`,
                 round,
                 staker,
                 ownBond: collatorData.state.bond,
                 totalBond,
                 rewardAmount: data.collatorComission,
-                nominatorsCount: allDelegations.length,
+                nominatorsCount: collatorData.state.delegations.length,
             })
 
             roundCollators.set(id, collator)
 
-            for (let delegation of allDelegations) {
-                let nominatorId = chain.encodeAddress(delegation.owner)
-                let nominator = roundNominators.get(nominatorId)
+            for (const delegation of collatorData.state.delegations) {
+                const nominatorId = delegation.owner
+                const nominator = roundNominators.get(nominatorId)
                 assert(nominator != null)
 
                 nominations.push(
