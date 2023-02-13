@@ -9,6 +9,7 @@ import {
     ParachainStakingDelegationEvent,
     ParachainStakingDelegationIncreasedEvent,
     ParachainStakingDelegationRevokedEvent,
+    ParachainStakingJoinedCollatorCandidatesEvent,
     ParachainStakingNewRoundEvent,
     ParachainStakingNominationDecreasedEvent,
     ParachainStakingNominationEvent,
@@ -26,6 +27,30 @@ export const NewRound = {
             return {startingBlock, round, selectedCollatorsNumber, totalBalance}
         } else if (e.isV1300) {
             return e.asV1300
+        } else {
+            throw new UnknownVersionError(e)
+        }
+    },
+}
+
+export const JoinedCollatorCandidates = {
+    names: {'ParachainStaking.JoinedCollatorCandidates': true} as const,
+    decode(ctx: ChainContext, event: Event): ParachainStaking.CandidateBondedMore {
+        const e = new ParachainStakingJoinedCollatorCandidatesEvent(ctx, event)
+        if (e.isV900) {
+            const [account, amount, newTotal] = e.asV900
+            return {
+                account,
+                amount,
+                newTotal,
+            }
+        } else if (e.isV1300) {
+            const {account, amountLocked, newTotalAmtLocked} = e.asV1300
+            return {
+                account,
+                amount: amountLocked,
+                newTotal: newTotalAmtLocked,
+            }
         } else {
             throw new UnknownVersionError(e)
         }

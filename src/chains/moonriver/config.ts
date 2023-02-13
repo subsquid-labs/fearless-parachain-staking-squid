@@ -5,7 +5,6 @@ const config = {
         archive: 'https://moonriver.archive.subsquid.io/graphql',
         chain: process.env.MOONRIVER_CHAIN_NODE || 'wss://wss.api.moonriver.moonbeam.network',
     },
-    typesBundle: 'moonriver',
 }
 
 export default config

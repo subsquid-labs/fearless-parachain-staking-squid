@@ -120,7 +120,7 @@ export async function processStaking(
                 }
 
                 staker.role = 'collator'
-                staker.activeBond += data.isUnstake ? -data.amount : data.amount
+                staker.activeBond = data.newTotal
 
                 historyElements.push(
                     new HistoryElement({

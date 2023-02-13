@@ -25,6 +25,7 @@ const processor = new SubstrateBatchProcessor()
     .addEvent('ParachainStaking.DelegationDecreased', {data: DEFAULT_SELECTION})
     .addEvent('ParachainStaking.DelegationRevoked', {data: DEFAULT_SELECTION})
     .addEvent('ParachainStaking.Compounded', {data: DEFAULT_SELECTION})
+    .addEvent('ParachainStaking.JoinedCollatorCandidates', {data: DEFAULT_SELECTION})
 
 processor.run(database, async (ctx) => {
     const roundsData = await getRoundsData(ctx)
@@ -136,6 +137,20 @@ async function getStakingData(ctx: BatchContext<unknown, Item>): Promise<Staking
             if (item.kind !== 'event') continue
 
             switch (item.name) {
+                case 'ParachainStaking.JoinedCollatorCandidates': {
+                    const e = ParachainStaking.events.JoinedCollatorCandidates.decode(ctx, item.event)
+                    stakingData.push({
+                        __kind: 'Bond',
+                        id: item.event.id,
+                        timestamp: new Date(block.timestamp),
+                        blockNumber: block.height,
+                        amount: e.amount,
+                        accountId: encodeAddress(e.account),
+                        newTotal: e.newTotal,
+                        isUnstake: false,
+                    })
+                    break
+                }
                 case 'ParachainStaking.CollatorBondedLess':
                 case 'ParachainStaking.CandidateBondedLess': {
                     const e = ParachainStaking.events.CandidateBondedLess.decode(ctx, item.event)

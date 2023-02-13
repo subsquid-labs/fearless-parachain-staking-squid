@@ -23,7 +23,8 @@
     "ParachainStaking.NominatorLeft",
     "ParachainStaking.NominatorLeftCollator",
     "ParachainStaking.Rewarded",
-    "ParachainStaking.Compounded"
+    "ParachainStaking.Compounded",
+    "ParachainStaking.JoinedCollatorCandidates"
   ],
   "calls": [],
   "storage": [
