@@ -10,7 +10,7 @@ deploy:
   addons:
     postgres:
   processor:
-    cmd: ["node", "lib/chains/moonbeam/processor"]
+    cmd: ["node", "lib/chains/moonriver/processor"]
   api:
     cmd:
       [
