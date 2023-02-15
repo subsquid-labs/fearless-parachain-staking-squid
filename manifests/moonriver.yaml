@@ -1,8 +1,8 @@
 manifestVersion: subsquid.io/v0.1
-name: belopash-moonriver-test
+name: fearless-moonriver
 version: 1
 description: |-
-  blablabla
+  Parachain staking tracking
 build:
 deploy:
   secrets:

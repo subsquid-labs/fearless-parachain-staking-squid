@@ -44,15 +44,15 @@
         "description": "Generate data access classes for an substrate metadata",
         "cmd": ["squid-substrate-typegen", {"glob": "./typegen/*.json"}]
       },
-      "process": {
+      "process:beam": {
         "description": "Load .env and start the squid processor",
         "deps": ["migration:apply"],
-        "cmd": ["node", "--require=dotenv/config", "lib/processor.js"]
+        "cmd": ["node", "--require=dotenv/config", "lib/chains/moonbeam/processor.js"]
       },
-      "process:prod": {
-        "description": "Start the squid processor",
-        "cmd": ["node", "lib/processor.js"],
-        "hidden": true
+      "process:river": {
+        "description": "Load .env and start the squid processor",
+        "deps": ["migration:apply"],
+        "cmd": ["node", "--require=dotenv/config", "lib/chains/moonriver/processor.js"]
       },
       "serve": {
         "description": "Start the GraphQL API server",
