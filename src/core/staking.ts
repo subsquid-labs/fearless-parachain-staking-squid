@@ -2,7 +2,7 @@ import assert from 'assert'
 import {In, MoreThanOrEqual} from 'typeorm'
 import {BatchContext} from '@subsquid/substrate-processor'
 import {Store} from '@subsquid/typeorm-store'
-import {HistoryElement, Reward, Round, RoundCollator, Staker} from '../model'
+import {Collator, Delegator, HistoryElement, Reward, Round, RoundCollator, Staker} from '../model'
 import {splitIntoBatches, toEntityMap} from '../utils/misc'
 import {createStaker} from './entities'
 
@@ -80,6 +80,8 @@ export async function processStaking(
 
     const stakerIds = new Set<string>()
     const roundCollatorIds = new Set<string>()
+    const collatorIds = new Set<string>()
+    const delegatorIds = new Set<string>()
 
     for (const data of stakingData) {
         const round = getRound(data.blockNumber)
@@ -87,10 +89,16 @@ export async function processStaking(
         const stakerId = data.accountId
         stakerIds.add(stakerId)
 
-        if (data.__kind === 'Reward') {
-            for (let i = rewardPaymentDelay; i <= roundOffset; i++) {
-                roundCollatorIds.add(`${round.index - i}-${stakerId}`)
-            }
+        switch (data.__kind) {
+            case 'Reward':
+                for (let i = rewardPaymentDelay; i <= roundOffset; i++) {
+                    roundCollatorIds.add(`${round.index - i}-${stakerId}`)
+                }
+                break
+            case 'Delegation':
+                collatorIds.add(data.candidateId)
+                delegatorIds.add(data.accountId)
+                break
         }
     }
 
@@ -104,6 +112,8 @@ export async function processStaking(
         return r
     }
     const roundCollators = await findRoundCollators([...roundCollatorIds]).then(toEntityMap)
+    const delegators = await ctx.store.find(Delegator, {where: {id: In([...delegatorIds])}}).then(toEntityMap)
+    const collators = await ctx.store.find(Collator, {where: {id: In([...collatorIds])}}).then(toEntityMap)
 
     const historyElements: HistoryElement[] = []
     const rewards: Reward[] = []
@@ -146,6 +156,18 @@ export async function processStaking(
                 staker.role = 'delegator'
                 staker.activeBond += data.isUnstake ? -data.amount : data.amount
 
+                let delegator = delegators.get(data.accountId)
+                if (delegator == null) {
+                    delegator = new Delegator({id: data.accountId})
+                    delegators.set(stakerId, delegator)
+                }
+
+                let collator = collators.get(data.candidateId)
+                if (collator == null) {
+                    collator = new Collator({id: data.accountId})
+                    collators.set(stakerId, collator)
+                }
+
                 historyElements.push(
                     new HistoryElement({
                         id: data.id,
@@ -155,6 +177,8 @@ export async function processStaking(
                         type: data.isUnstake ? 1 : 0,
                         round: round,
                         staker: staker,
+                        delegator,
+                        collator,
                     })
                 )
 
@@ -234,6 +258,8 @@ export async function processStaking(
 
     await ctx.store.save([...stakers.values()])
     await ctx.store.save([...roundCollators.values()])
+    await ctx.store.save([...collators.values()])
+    await ctx.store.save([...delegators.values()])
 
     await ctx.store.insert(historyElements)
     await ctx.store.insert(rewards)
