@@ -1,6 +1,6 @@
 manifestVersion: subsquid.io/v0.1
 name: fearless-moonriver
-version: 1
+version: 2
 description: |-
   Parachain staking tracking
 build:
