@@ -26,6 +26,8 @@ deploy:
         "1000",
       ]
 scale:
+  processor:
+    profile: medium
   addons:
     postgres:
       storage: 100Gi
