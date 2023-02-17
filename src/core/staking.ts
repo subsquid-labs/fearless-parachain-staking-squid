@@ -159,13 +159,13 @@ export async function processStaking(
                 let delegator = delegators.get(data.accountId)
                 if (delegator == null) {
                     delegator = new Delegator({id: data.accountId})
-                    delegators.set(stakerId, delegator)
+                    delegators.set(delegator.id, delegator)
                 }
 
                 let collator = collators.get(data.candidateId)
                 if (collator == null) {
-                    collator = new Collator({id: data.accountId})
-                    collators.set(stakerId, collator)
+                    collator = new Collator({id: data.candidateId})
+                    collators.set(collator.id, collator)
                 }
 
                 historyElements.push(
